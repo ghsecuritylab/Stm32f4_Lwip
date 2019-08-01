@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "task.h"
 #include "string.h"
+#include "module.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,8 +52,6 @@ DMA_HandleTypeDef hdma_usart2_tx;
 osThreadId_t defaultTaskHandle;
 /* USER CODE BEGIN PV */
 osThreadId_t MyTaskHandle;
-volatile char cIn;
-osMessageQueueId_t rxQueue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,19 +67,6 @@ void MyTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void C2C_HwResetAndPowerUp(void)
-{
-	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-	  HAL_Delay(1000);
-	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-	  HAL_Delay(1000);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
-	  HAL_Delay(1000);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
-	  /* Waits for Modem complete its booting procedure */
-	  HAL_Delay(5000);
-}
-
 void printMsg(char* data, int len)
 {
 	for(int i = 0; i<len; i++)
@@ -129,7 +115,7 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  C2C_HwResetAndPowerUp();
+
   /* USER CODE END 2 */
 
   osKernelInitialize();
@@ -148,7 +134,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  	rxQueue = osMessageQueueNew (256, 1, NULL);
+	moduleQueueInitialize();
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -156,12 +142,13 @@ int main(void)
   const osThreadAttr_t defaultTask_attributes = {
     .name = "defaultTask",
     .priority = (osPriority_t) osPriorityNormal,
-    .stack_size = 128
+    .stack_size = 512
   };
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+/*
   const osThreadAttr_t MyTask_attributes = {
     .name = "MyTask",
     .priority = (osPriority_t) osPriorityNormal,
@@ -169,6 +156,7 @@ int main(void)
   };
    MyTaskHandle = osThreadNew(MyTask, NULL, &MyTask_attributes);
 
+*/
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -330,20 +318,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	osMessageQueuePut(rxQueue, (uint8_t*)&cIn, 0, 0);
-}
 void MyTask(void *argument)
 {
-	HAL_UART_Receive_DMA(&huart2, (uint8_t*)&cIn, 1);
 	while(1)
 	{
-		printMsg("AT\r\n", 4);
-		HAL_UART_Transmit(&huart2, (uint8_t*)"AT\r\n", 4, 100);
 		osDelay(1000);
 	}
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -360,24 +342,10 @@ void StartDefaultTask(void *argument)
     
 
   /* USER CODE BEGIN 5 */
-	char data = 0;
-	char dataLine[64] = {0};
-	uint8_t idx = 0;
+	moduleInit();
   /* Infinite loop */
   for(;;)
   {
-	if(osMessageQueueGet(rxQueue, &data, 0, 0) == osOK)
-	{
-		if(data != '\n')
-		{
-			dataLine[idx++] = data;
-		}
-		else
-		{
-			printMsg(dataLine, idx);
-			idx = 0;
-		}
-	}
   }
   /* USER CODE END 5 */ 
 }
